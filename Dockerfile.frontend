@@ -1,0 +1,24 @@
+# Development Dockerfile for Vue
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Install dependencies
+COPY webui/package*.json ./
+RUN npm install
+
+# Copy source code
+COPY webui/ ./
+
+RUN chown -R node:node /app
+USER node
+
+# Set environment variables
+ENV VITE_API_URL=http://localhost:8080
+ENV VITE_PHOTOS_UPLOAD_PATH=http://localhost:8080/uploads/photos
+
+# Expose dev server port
+EXPOSE 4173
+
+# Start development server with hot-reload
+CMD ["npm", "run", "dev", "--", "--host"]

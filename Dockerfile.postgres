@@ -1,0 +1,13 @@
+    # Use the official PostgreSQL image
+    FROM postgres:16-alpine
+
+    # Environment variables for database initialization
+    ENV POSTGRES_USER=root
+    ENV POSTGRES_PASSWORD=root
+    ENV POSTGRES_DB=wasaText
+
+    # Copy the schema.sql file to the initialization directory
+    # Any .sql files in this directory will be executed in alphabetical order when the container is first started
+    COPY ./internal/repository/postgres/schema.sql /docker-entrypoint-initdb.d/
+
+    EXPOSE 5432

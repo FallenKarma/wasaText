@@ -1,0 +1,53 @@
+services:
+  db:
+    build:
+      context: .
+      dockerfile: Dockerfile.postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=root
+      - POSTGRES_PASSWORD=root
+      - POSTGRES_DB=wasaText
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ## Healthcheck to ensure PostgreSQL is ready before other services start
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - DB_CONNECTION_STRING=postgres://root:root@db:5432/wasaText?sslmode=disable
+    volumes:
+      - ./.env:/.env
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    volumes:
+      - ./webui:/app
+      - /app/node_modules
+    ports:
+      - "4173:4173"
+    depends_on:
+      backend:
+        condition: service_started
+    environment:
+      - VITE_API_URL=http://localhost:8080/api
+      - VITE_PHOTO_SERVER_URL=http://localhost:8080
+
+volumes:
+  postgres_data:

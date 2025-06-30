@@ -1,0 +1,530 @@
+openapi: 3.0.3
+info:
+  title: WASAText API
+  description: |-
+    This OpenAPI document defines the API for the WASAText application.
+    It supports messaging, groups, simplified login, and user profile management.
+  version: "1.0.0"
+
+servers:
+  - url: http://localhost:8080/api
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: string
+      description: Bearer identifier authentication. Include the user id in the Authorization header as 'Bearer {id}'
+  schemas:
+    Conversation:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          $ref: "#/components/schemas/ConversationType"
+        photo:
+          type: string
+          format: uri
+        participants:
+          type: array
+          items:
+            $ref: "#/components/schemas/Participant"
+        lastMessage:
+          $ref: "#/components/schemas/Message"
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/Message"
+    ConversationType:
+      type: string
+      enum:
+        - direct
+        - group
+    CreateConversationRequest:
+      type: object
+      properties:
+        participants:
+          type: array
+          items:
+            type: string
+          description: UserIDs of participants (excluding the creator)
+        type:
+          $ref: "#/components/schemas/ConversationType"
+        name:
+          type: string
+      required:
+        - participants
+        - type
+        - name
+    SendMessageRequest:
+      type: object
+      properties:
+        conversationId:
+          type: string
+        content:
+          type: string
+    Message:
+      type: object
+      properties:
+        id:
+          type: string
+        conversationId:
+          type: string
+        sender:
+          $ref: "#/components/schemas/User"
+        timestamp:
+          type: string
+          format: date-time
+        content:
+          type: string
+        type:
+          $ref: "#/components/schemas/MessageType"
+        status:
+          $ref: "#/components/schemas/MessageStatus"
+        replyTo:
+          type: string
+        deletedAt:
+          type: string
+          format: date-time
+        reactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Reaction"
+    MessageStatus:
+      type: string
+      enum:
+        - sent
+        - received
+        - read
+    MessageType:
+      type: string
+      enum:
+        - text
+        - photo
+    Participant:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        photo:
+          type: string
+          format: uri
+    Reaction:
+      type: object
+      properties:
+        messageId:
+          type: string
+        userId:
+          type: string
+        emoji:
+          type: string
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        photo:
+          type: string
+          format: uri
+    SuccessResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        success:
+          type: boolean
+          default: true
+
+security:
+  - bearerAuth: []
+
+paths:
+  /session:
+    post:
+      security: []
+      tags: [login]
+      summary: Logs in the user
+      description: |-
+        If the user does not exist, it will be created, and an identifier is returned.
+        If the user exists, the user identifier is returned.
+      operationId: doLogin
+      requestBody:
+        description: User details
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  example: Maria
+                  minLength: 3
+                  maxLength: 16
+      responses:
+        "201":
+          description: User log-in action successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    example: "f54321a2-24f5-420a-91c7-bfa3d874722f"
+
+  /users:
+    get:
+      tags: [users]
+      summary: Get users list
+      operationId: getUsers
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+  /users/me:
+    get:
+      tags: [users]
+      summary: Get currently logged in user profile
+      operationId: getMyUser
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Logged in user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/me/username:
+    put:
+      tags: [users]
+      summary: Update user's name
+      operationId: setMyUserName
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+      responses:
+        "204":
+          description: Username updated
+
+  /users/me/photo:
+    put:
+      tags: [users]
+      summary: Set user photo
+      operationId: setMyPhoto
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                photo:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: Photo uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  photo:
+                    type: string
+                    format: uri
+                    example: "http://localhost:8080/uploads/photos/1234567890.jpg"
+
+  /conversations:
+    get:
+      tags: [conversation]
+      summary: Get user's conversations
+      operationId: getMyConversations
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of conversations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Conversation"
+
+    post:
+      tags: [conversation]
+      summary: Create a new conversation
+      operationId: newConversation
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateConversationRequest"
+      responses:
+        "201":
+          description: Conversation created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Conversation"
+
+  /conversations/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+        description: Conversation ID
+    get:
+      tags: [conversation]
+      summary: Get specific conversation
+      operationId: getConversation
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Conversation details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Conversation"
+
+  /messages:
+    post:
+      tags: [message]
+      summary: Send a new message
+      operationId: sendMessage
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendMessageRequest"
+      responses:
+        "201":
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+
+  /messages/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+        description: Message ID
+    delete:
+      tags: [message]
+      summary: Delete a message
+      operationId: deleteMessage
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Message deleted
+    put:
+      tags: [message]
+      summary: Update a message
+      operationId: updateMessage
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                content:
+                  type: string
+      responses:
+        "204":
+          description: Message updated
+
+  /messages/{id}/reaction:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+        description: Message ID
+    post:
+      tags: [message]
+      summary: Add a reaction to a message
+      operationId: commentMessage
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Reaction"
+      responses:
+        "204":
+          description: Reaction added
+    delete:
+      tags: [message]
+      summary: Remove reaction from message
+      operationId: uncommentMessage
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Reaction removed
+
+  /groups/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+        description: Group ID
+
+  /groups/{id}/members:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+        description: Group ID
+    post:
+      tags: [group]
+      summary: Add user to group
+      operationId: addToGroup
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+      responses:
+        "204":
+          description: User added to group
+
+  /groups/{id}/leave:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+        description: Group ID
+    post:
+      tags: [group]
+      summary: Leave group
+      operationId: leaveGroup
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: User left group
+
+  /groups/{id}/name:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+        description: Group ID
+    put:
+      tags: [group]
+      summary: Set group name
+      operationId: setGroupName
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+      responses:
+        "204":
+          description: Group name updated
+
+  /groups/{id}/photo:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+        description: Group ID
+    put:
+      tags: [group]
+      summary: Set group photo
+      operationId: setGroupPhoto
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                photo:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: Group photo set
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  photo:
+                    type: string
+                    format: uri
+                    example: "http://localhost:8080/uploads/photos/1234567890.jpg"

@@ -3,6 +3,11 @@ FROM golang:1.24.1-alpine AS builder
 
 WORKDIR /app
 
+# Install build dependencies for go-sqlite3
+# This includes 'gcc' and 'musl-dev' (often needed for CGO on Alpine)
+# and 'sqlite-dev' for the SQLite development headers.
+RUN apk add --no-cache gcc musl-dev sqlite-dev
+
 # Copy go.mod and go.sum
 COPY go.mod go.sum* ./
 RUN go mod download
@@ -10,24 +15,29 @@ RUN go mod download
 # Copy application source
 COPY . .
 
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -o /app/webservice ./cmd/webapi/
+# Build the application with CGO enabled.
+# GOOS=linux is generally implicit when using a Linux base image like Alpine,
+# but being explicit doesn't hurt.
+RUN CGO_ENABLED=1 GOOS=linux go build -o /app/webservice ./cmd/webapi/
 
 # Final stage
 FROM alpine:latest
 
-# Install CA certificates for HTTPS requests if needed
-RUN apk --no-cache add ca-certificates
+# Install CA certificates for HTTPS requests (good practice)
+# Install 'sqlite-libs' which provides the runtime SQLite shared library.
+RUN apk --no-cache add ca-certificates sqlite-libs
 
 WORKDIR /app
 
 # Copy the binary from the builder stage
 COPY --from=builder /app/webservice .
 
+# Define environment variables for the running container
 ENV SERVER_PORT=8080
-ENV DB_CONNECTION_STRING=postgres://root:root@localhost:5432/wasaText?sslmode=disable
 ENV PHOTOS_UPLOAD_PATH=/app/uploads/photos
 
+# Create the uploads directory for photos.
+RUN mkdir -p ${PHOTOS_UPLOAD_PATH}
 
 EXPOSE 8080
 

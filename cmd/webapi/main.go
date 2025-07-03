@@ -6,11 +6,13 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"time"
 
-	"github.com/fallenkarma/wasatext/internal/handlers"
-	"github.com/fallenkarma/wasatext/internal/repository/postgres"
-	"github.com/fallenkarma/wasatext/internal/service"
+	handlers "github.com/fallenkarma/wasatext/service/api"
+	"github.com/fallenkarma/wasatext/service/repository"
+	"github.com/fallenkarma/wasatext/service/repository/sqlite"
+	"github.com/fallenkarma/wasatext/service/service"
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
 	"github.com/rs/cors"
@@ -29,15 +31,29 @@ func main() {
     if port == "" {
         port = "8080" 
     }
+
+	ex, err := os.Executable()
+	if err != nil {
+		log.Fatalf("Failed to get executable path: %v", err)
+	}
+	exPath := filepath.Dir(ex)
     
     dbConnectionString := os.Getenv("DB_CONNECTION_STRING")
 	log.Print("DB_CONNECTION_STRING: ", dbConnectionString)
 
 	const UPLOADS_BASE_PATH = "/app/uploads"
-	repo,err := postgres.NewPostgresRepository(dbConnectionString,UPLOADS_BASE_PATH)
+/* 	repo,err := postgres.NewPostgresRepository(dbConnectionString,UPLOADS_BASE_PATH)
 	if err != nil {
 		log.Fatalf("Connection to database failed: %v", err)
+	} */
+    var repo repository.Repository
+	dbPath := filepath.Join(exPath, "wasatext.db") // SQLite database file
+	sqliteRepo, err := sqlite.NewSqliteRepository(dbPath, UPLOADS_BASE_PATH)
+	if err != nil {
+		log.Fatalf("Failed to create SQLite repository: %v", err)
 	}
+	repo = sqliteRepo
+	log.Printf("Using SQLite repository at %s.", dbPath)
 
 	// Initialize service with repository
 	svc := service.New(repo)
